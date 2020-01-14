@@ -204,6 +204,45 @@ def select_role_arn(role_arns, saml_xml, saml_response_string):
     return selected_role
 
 
+def select_preferred_mfa_index(mfa_options, duo=False):
+    """Show all the MFA options to the users.
+
+    :param mfa_options: List of available MFA options
+    :return: MFA option selected index by the user from the output
+    """
+    logging.debug("Show all the MFA options to the users.")
+    print('\nSelect your preferred MFA method and press Enter')
+
+    longest_index = len(str(len(mfa_options)))
+    for (i, mfa_option) in enumerate(mfa_options):
+        if duo:
+            factor = "factor"
+            subfactor = "device"
+        else:
+            factor = "provider"
+            subfactor = "factorType"
+
+        padding_index = longest_index - len(str(i))
+        longest_factor_name = max([len(d[factor]) for d in mfa_options])
+        print('[{}] {}{: <{}}    {}'.format(
+            i, padding_index*' ', mfa_option[factor], longest_factor_name, mfa_option[subfactor]))
+
+    while True:
+        user_input = to_unicode(input('-> '))
+        logging.debug("User input [{}]".format(user_input))
+
+        try:
+            user_input = int(user_input)
+        except ValueError as error:
+            print('Invalid input, try again.\n{}'.format(error))
+            continue
+        if user_input in range(0, len(mfa_options)):
+            break
+        print('Invalid choice')
+        continue
+    return user_input
+
+
 def prompt_role_choices(role_arns, saml_xml, saml_response_string):
     """Ask user to select role.
 
@@ -265,8 +304,8 @@ def print_selected_role(profile_name, expiration_time):
         '\nOR\n\t'
         'export AWS_PROFILE=\'{}\'\n\n'
         'Credentials are valid until {}.'
-        ).format(profile_name, settings.aws_shared_credentials_file,
-                 profile_name, profile_name, expiration_time)
+    ).format(profile_name, settings.aws_shared_credentials_file,
+             profile_name, profile_name, expiration_time)
 
     return print(msg)
 
@@ -360,7 +399,8 @@ def get_account_aliases(saml_xml, saml_response_string):
 
     soup = BeautifulSoup(aws_response.text, "html.parser")
     account_names = soup.find_all(text=re.compile('Account:'))
-    alias_table = {str(i.split(" ")[-1]).strip("()"): i.split(" ")[1] for i in account_names}
+    alias_table = {str(i.split(" ")[-1]).strip("()"):
+                   i.split(" ")[1] for i in account_names}
 
     return alias_table
 
@@ -388,7 +428,8 @@ def process_ini_file(file, profile):
     try:
         for (key, val) in config.items(profile):
             if hasattr(settings, key):
-                logging.debug('Set option {}={} from ini file'.format(key, val))
+                logging.debug(
+                    'Set option {}={} from ini file'.format(key, val))
                 setattr(settings, key, val)
     except configparser.NoSectionError:
         logging.error('Profile \'{}\' does not exist.'.format(profile))
@@ -403,7 +444,8 @@ def process_arguments(args):
     """
     for (key, val) in vars(args).items():
         if hasattr(settings, key) and val is not None:
-            logging.debug('Set option {}={} from command line'.format(key, val))
+            logging.debug(
+                'Set option {}={} from command line'.format(key, val))
             setattr(settings, key, val)
 
 
@@ -417,16 +459,6 @@ def process_environment():
         if hasattr(settings, key):
             logging.debug('Set option {}={} from environment'.format(key, val))
             setattr(settings, key, os.getenv(key.upper()))
-
-
-def process_okta_credentials():
-    """Set Okta credentials.
-
-    :return: Success or error message
-    """
-    logging.debug("Set Okta credentials.")
-    set_okta_username()
-    set_okta_password()
 
 
 def process_okta_aws_app_url():
@@ -602,6 +634,51 @@ def update_aws_config(profile, output, region):
         config.write(file)
 
 
+def collect_totp():
+    """Collect TOTP from user.
+
+    Check:
+    1. Is integer
+    2. Is 6 digits
+    :return passcode:
+    """
+    user_input = None
+
+    while True:
+        user_input = to_unicode(input('Enter passcode:\n-> '))
+        logging.debug("User input [{}]".format(user_input))
+        try:
+            if int(user_input) and len(user_input) == 6:
+                break
+        except ValueError:
+            logging.error("Input is not an integer.")
+
+        print('Invalid input, please enter a 6-digit One Time Pin.')
+        continue
+
+    return user_input
+
+
+def prepare_payload(**kwargs):
+    """Prepare payload for the HTTP request header.
+
+    :param kwargs: parameters to get together
+    :return: payload for the http header
+
+    """
+    logging.debug("Prepare payload")
+
+    payload_dict = {}
+    if kwargs is not None:
+        for key, value in list(kwargs.items()):
+            payload_dict[key] = value
+
+            if key != 'password':
+                logging.debug("Prepare payload [{} {}]".format(key, value))
+
+    return payload_dict
+
+
 def process_options(args):
     """Collect all user-specific credentials and config params."""
     if args.version:
@@ -621,4 +698,6 @@ def process_options(args):
 
     process_okta_aws_app_url()
     # Set username and password for Okta Authentication
-    process_okta_credentials()
+    logging.debug("Set Okta credentials.")
+    set_okta_username()
+    set_okta_password()
