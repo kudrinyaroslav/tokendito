@@ -227,19 +227,8 @@ def select_preferred_mfa_index(mfa_options, duo=False):
         print('[{}] {}{: <{}}    {}'.format(
             i, padding_index*' ', mfa_option[factor], longest_factor_name, mfa_option[subfactor]))
 
-    while True:
-        user_input = to_unicode(input('-> '))
-        logging.debug("User input [{}]".format(user_input))
+    user_input = collect_integer(len(mfa_options))
 
-        try:
-            user_input = int(user_input)
-        except ValueError as error:
-            print('Invalid input, try again.\n{}'.format(error))
-            continue
-        if user_input in range(0, len(mfa_options)):
-            break
-        print('Invalid choice')
-        continue
     return user_input
 
 
@@ -268,22 +257,8 @@ def prompt_role_choices(role_arns, saml_xml, saml_response_string):
         print('[{}] {}{: <{}}    {}'.format(
             i, padding_index*' ', account_alias, longest_alias, arn))
 
-    while True:
-        user_input = to_unicode(input('-> '))
-
-        try:
-            user_input = int(user_input)
-        except ValueError as error:
-            print('Invalid input, try again.' + str(error))
-            logging.warning("Invalid input [{}]".format(error))
-            continue
-        if user_input in range(0, len(role_arns)):
-            logging.debug("User selected item {}.".format(user_input))
-            break
-        continue
-
+    user_input = collect_integer(len(role_arns))
     selected_role = sorted_role_arns[user_input]
-
     logging.debug("Selected role [{}]".format(user_input))
 
     return selected_role
@@ -483,7 +458,6 @@ def user_configuration_input():
     """Obtain user input for the user.
 
     :return: (okta app url, organization username)
-
     """
     logging.debug("Obtain user input for the user.")
     url = ''
@@ -584,8 +558,6 @@ def update_aws_credentials(profile, aws_access_key, aws_secret_key, aws_session_
     :param aws_access_key: AWS access key
     :param aws_secret_key: AWS secret access key
     :param aws_session_token: Session token
-    :return:
-
     """
     cred_file = settings.aws_shared_credentials_file
     cred_dir = os.path.dirname(cred_file)
@@ -634,28 +606,81 @@ def update_aws_config(profile, output, region):
         config.write(file)
 
 
-def collect_totp():
-    """Collect TOTP from user.
+def check_within_range(user_input, valid_range):
+    """Validate the user input is within the range of the presented menu.
 
-    Check:
-    1. Is integer
-    2. Is 6 digits
+    This should only get invoked when valid_range is not None, which
+    is only true during menu selection validation and not for TOTP validation.
+
+    :param user_input: integer-validated user input.
+    :param valid_range: the valid range presented on the user's menu.
+    :return range_validation: true or false
+    """
+    range_validation = False
+    if int(user_input) in range(0, valid_range):
+        range_validation = True
+    else:
+        logging.debug("Valid range is {}".format(valid_range))
+        logging.error("Value is not in within the selection range.")
+    return range_validation
+
+
+def check_integer(value, valid_range):
+    """Validate integer.
+
+    :param value: value to be validated.
     :return passcode:
     """
+    integer_validation = False
+    try:
+        if int(value):
+            integer_validation = True
+    except ValueError:
+        logging.error("Input is not an integer.")
+
+    return integer_validation
+
+
+def validate_input(value, valid_range):
+    """Validate user input is an integer and within menu range.
+
+    :param value: user input
+    :param valid_range: valid range based on how many menu options available to user.
+    """
+    integer_validation = check_integer(value, valid_range)
+    if valid_range:
+        integer_validation = check_within_range(value, valid_range)
+    return integer_validation
+
+
+def get_input():
+    """Collect user input for TOTP.
+
+    :return user_input: raw from user.
+    """
+    user_input = to_unicode(input('\n-> '))
+    logging.debug("User input [{}]".format(user_input))
+
+    return user_input
+
+
+def collect_integer(valid_range=None):
+    """Collect input from user.
+
+    Prompt the user for input. Validate it and cast to integer.
+    If a valid_range is provided, it means the user has a
+    limited menu of options available to select from. Otherwise,
+    if entering a TOTP, this does not apply.
+
+    :param valid_range: number of menu options available to user.
+    :return user_input: validated, casted integer from user.
+    """
     user_input = None
-
     while True:
-        user_input = to_unicode(input('Enter passcode:\n-> '))
-        logging.debug("User input [{}]".format(user_input))
-        try:
-            if int(user_input) and len(user_input) == 6:
-                break
-        except ValueError:
-            logging.error("Input is not an integer.")
-
-        print('Invalid input, please enter a 6-digit One Time Pin.')
-        continue
-
+        user_input = get_input()
+        if validate_input(user_input, valid_range):
+            user_input = int(user_input)
+            break
     return user_input
 
 
@@ -664,7 +689,6 @@ def prepare_payload(**kwargs):
 
     :param kwargs: parameters to get together
     :return: payload for the http header
-
     """
     logging.debug("Prepare payload")
 
