@@ -145,15 +145,18 @@ def user_mfa_challenge(headers, primary_auth):
         mfa_challenge_url, headers))
 
     if mfa_provider == "duo":
-        payload, headers, callback_url = duo_helpers.authenticate_duo(selected_factor)
+        payload, headers, callback_url = duo_helpers.authenticate_duo(
+            selected_factor)
         okta_verify_api_method(callback_url, payload)
         payload.pop("id", "sig_response")
         mfa_verify = okta_verify_api_method(
             mfa_challenge_url, payload, headers)
-    else:
+    elif mfa_provider == "okta" or mfa_provider == "google":
         mfa_verify = user_mfa_options(selected_mfa_option,
                                       headers, mfa_challenge_url, payload, primary_auth)
-
+    else:
+        logging.error("Sorry, the MFA provider {} is not yet supported."
+                      "Please retry with another option.".format(mfa_provider))
     return mfa_verify['sessionToken']
 
 

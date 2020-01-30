@@ -72,7 +72,8 @@ def duo_api_post(url, params={}, headers={}, payload={}):
             print("\n{}".format(
                 response.status_code, json_message["message"]))
         else:
-            print('Please re-run the program with parameters "--loglevel debug" to see more information.')
+            print('Please re-run the program with parameter'
+                  ' "--loglevel debug" to see more information.')
         exit(1)
 
     return response
