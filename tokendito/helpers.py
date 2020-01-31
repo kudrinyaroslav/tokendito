@@ -678,7 +678,9 @@ def collect_integer(valid_range=None):
     user_input = None
     while True:
         user_input = get_input()
-        if validate_input(user_input, valid_range):
+        valid_input = validate_input(user_input, valid_range)
+        logging.debug("User input validation status is {}".format(valid_input))
+        if valid_input:
             user_input = int(user_input)
             break
     return user_input

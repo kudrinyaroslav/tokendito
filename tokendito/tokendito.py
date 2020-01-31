@@ -30,3 +30,8 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         print('\nInterrupted')
         sys.exit(1)
+    except Exception as general_error:
+        print("There was an issue completing your tokendito process."
+            "Please run tokendito with '--loglevel debug' for the most information."
+        logging.error(general_error)
+        sys.exit(1)

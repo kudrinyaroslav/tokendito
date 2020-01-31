@@ -155,8 +155,9 @@ def user_mfa_challenge(headers, primary_auth):
         mfa_verify = user_mfa_options(selected_mfa_option,
                                       headers, mfa_challenge_url, payload, primary_auth)
     else:
-        logging.error("Sorry, the MFA provider {} is not yet supported."
-                      "Please retry with another option.".format(mfa_provider))
+        logging.error("Sorry, the MFA provider '{}' is not yet supported."
+                      " Please retry with another option.".format(mfa_provider))
+        exit(1)
     return mfa_verify['sessionToken']
 
 

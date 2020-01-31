@@ -58,6 +58,7 @@ def duo_api_post(url, params={}, headers={}, payload={}):
     except Exception as request_issue:
         logging.error(
             "There was an error connecting to the Duo API: \n{}".format(request_issue))
+        exit()
 
     json_message = None
     try:
@@ -100,8 +101,7 @@ def get_duo_sid(duo_info):
 
     duo_auth_redirect = urlparse("{}".format(
         unquote(duo_auth_response.url))).query
-    sid = [d for d in duo_auth_redirect.split("&") if "sid" in d]
-    duo_info["sid"] = sid[0].strip("sid=")
+    duo_info["sid"] = duo_auth_redirect.strip("sid=")
 
     return duo_info, duo_auth_response
 
@@ -121,6 +121,10 @@ def get_duo_devices(duo_auth):
 
     device_soup = soup.find("select", {"name": "device"}).findAll("option")
     devices = ["{} - {}".format(d["value"], d.text) for d in device_soup]
+    if not devices:
+        logging.error("Please configure devices for your Duo MFA and retry.")
+        exit(2)
+
     factor_options = []
     for device in devices:
         options = soup.find(
@@ -132,6 +136,32 @@ def get_duo_devices(duo_auth):
             factor_option["factor"] = factor["value"]
             factor_options.append(factor_option)
     return factor_options
+
+
+def parse_duo_mfa_challenge(mfa_challenge):
+    """Gracefully parse Duo MFA challenge response.
+    :param mfa_challenge: Duo API response for MFA challenge.
+    :return txid: Duo transaction ID.
+    """
+    try:
+        mfa_challenge = mfa_challenge.json()
+        mfa_status = mfa_challenge["stat"]
+    except ValueError as value_error:
+        logging.error(
+            "The Duo API returned a non-json response: \n{}".format(value_error))
+        exit(1)
+    except KeyError as key_error:
+        logging.error(
+            "The Duo API response is missing a required parameter: \n{}".format(key_error))
+        print(json.dumps(mfa_challenge))
+        exit(1)
+
+    if mfa_status == "fail":
+        logging.error("Your Duo authentication has failed: \n{}".format(
+            mfa_challenge["message"]))
+        exit(1)
+
+    return mfa_challenge["response"]["txid"]
 
 
 def duo_mfa_challenge(duo_info, mfa_option, passcode):
@@ -154,16 +184,13 @@ def duo_mfa_challenge(duo_info, mfa_option, passcode):
                                        days_out_of_date=0,
                                        days_to_block=None)
     mfa_data["async"] = True  # async is a reserved keyword
-    if passcode is not None:
+    if passcode:
         mfa_data["passcode"] = passcode
     mfa_challenge = duo_api_post(url, payload=mfa_data)
-
-    if mfa_challenge.json()["stat"].lower() == "fail":
-        exit(("Your Duo authentication has failed: \n{}".format(
-            mfa_challenge.json()["message"])))
+    txid = parse_duo_mfa_challenge(mfa_challenge)
 
     logging.debug("Sent MFA Challenge and obtained Duo transaction ID.")
-    return mfa_challenge.json()["response"]["txid"]
+    return txid
 
 
 def duo_mfa_verify(duo_info, txid):
@@ -184,10 +211,8 @@ def duo_mfa_verify(duo_info, txid):
         mfa_result = duo_api_post(url, payload=challenged_mfa)
         verify_mfa = mfa_result.json()["response"]
 
-        try:
+        if "status" in verify_mfa:
             print(verify_mfa["status"])
-        except KeyError:
-            logging.debug("No factor status found.")
 
         try:
             mfa_result = verify_mfa["result"]
@@ -200,14 +225,15 @@ def duo_mfa_verify(duo_info, txid):
             logging.debug("Successful MFA challenge received")
             break
         if mfa_result.lower() == "failure":
-            print("MFA challenge has failed for reason:"
-                  " {}\nPlease try again.".format(mfa_result, verify_mfa["reason"]))
-            continue
+            print("MFA challenge has failed for reason: {}\n"
+                  " {}. Please try again.".format(mfa_result, verify_mfa["reason"]))
+            exit(2)
         else:
             logging.debug("MFA challenge result: {}"
                           "Reason: {}\n\n".format(mfa_result, verify_mfa["reason"]))
             continue
         time.sleep(1)
+
     return verify_mfa
 
 
@@ -253,7 +279,7 @@ def authenticate_duo(selected_okta_factor):
     logging.debug("Selected MFA is [{}]".format(mfa_option))
 
     if mfa_option["factor"].lower() == "passcode":
-        passcode = helpers.collect_totp()
+        passcode = helpers.collect_integer()
     else:
         passcode = None
 
