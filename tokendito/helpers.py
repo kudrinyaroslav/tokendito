@@ -625,7 +625,7 @@ def check_within_range(user_input, valid_range):
     return range_validation
 
 
-def check_integer(value, valid_range):
+def check_integer(value):
     """Validate integer.
 
     :param value: value to be validated.
@@ -647,7 +647,7 @@ def validate_input(value, valid_range):
     :param value: user input
     :param valid_range: valid range based on how many menu options available to user.
     """
-    integer_validation = check_integer(value, valid_range)
+    integer_validation = check_integer(value)
     if valid_range:
         integer_validation = check_within_range(value, valid_range)
     return integer_validation
