@@ -66,7 +66,7 @@ def duo_api_post(url, params={}, headers={}, payload={}):
     except ValueError:
         logging.debug("Non-json response from Duo API: \n{}".format(response))
 
-    if response.status_code >= 400:
+    if response.status_code > 204:
         print("Your Duo authentication has failed with status {}.".format(
             response.status_code))
         if json_message and json_message["stat"].lower() != "ok":
@@ -91,17 +91,19 @@ def get_duo_sid(duo_info):
     """
     params = helpers.prepare_payload(
         tx=duo_info["tx"], v=duo_info["version"], parent=duo_info["parent"])
-    # confirm: does settings.okta_org always have https:// prefix?
-    # https%3A%2F%2Fdowjonestokendito.okta.com%2Fsignin%2Fverify%2Fduo%2Fweb
 
     url = "https://{}/frame/web/v1/auth".format(duo_info["host"])
     logging.info("Calling Duo {} with params {}".format(
         urlparse(url).path, params.keys()))
     duo_auth_response = duo_api_post(url, params=params)
 
-    duo_auth_redirect = urlparse("{}".format(
-        unquote(duo_auth_response.url))).query
-    duo_info["sid"] = duo_auth_redirect.strip("sid=")
+    try:
+        duo_auth_redirect = urlparse("{}".format(
+            unquote(duo_auth_response.url))).query
+        duo_info["sid"] = duo_auth_redirect.strip("sid=")
+    except Exception as sid_error:
+        logging.error("There was an error getting your SID."
+                      "Please try again. \n{}".format(sid_error))
 
     return duo_info, duo_auth_response
 
@@ -161,7 +163,13 @@ def parse_duo_mfa_challenge(mfa_challenge):
             mfa_challenge["message"]))
         exit(1)
 
-    return mfa_challenge["response"]["txid"]
+    try:
+        txid = mfa_challenge["response"]["txid"]
+    except KeyError as missing_txid:
+        logging.error("Duo API did not return a transaction ID."
+                      " Please try again.\n{}".format(missing_txid))
+        exit(1)
+    return txid
 
 
 def duo_mfa_challenge(duo_info, mfa_option, passcode):
@@ -269,7 +277,12 @@ def authenticate_duo(selected_okta_factor):
     :return payload: required payload for Okta callback
     :return headers: required headers for Okta callback
     """
-    duo_info = prepare_duo_info(selected_okta_factor)
+    try:
+        duo_info = prepare_duo_info(selected_okta_factor)
+    except KeyError as missing_key:
+        logging.error(
+            "There was an issue parsing the Okta factor. Please try again. \n{}".format(missing_key))
+        exit(1)
 
     # Collect devices, factors, auth params for Duo
     duo_info, duo_auth_response = get_duo_sid(duo_info)

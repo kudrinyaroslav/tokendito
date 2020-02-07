@@ -113,7 +113,7 @@ Additional Usage Reference
 
 Supported MFA Options:
 """"""""""""""""""""""
-- Native Okta factors (push, call, sms, TOTP)
+- Native Okta factors (push, call, sms, TOTP) *except Biometrics (FIDO webauthn)*
 - Google Authenticator TOTP
 - Duo (push, call, sms, TOTP) NOTE: These methods are currently *not* pre-configurable in tokendito settings and have to be selected during runtime.
 
