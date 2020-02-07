@@ -7,6 +7,7 @@ from __future__ import (absolute_import, division,
 from builtins import (ascii, bytes, chr, dict, filter, hex, input,  # noqa: F401
                       int, list, map, next, object, oct, open, pow, range,
                       round, str, super, zip)
+import json
 import logging
 import time
 from urllib.parse import unquote, urlparse
@@ -142,6 +143,7 @@ def get_duo_devices(duo_auth):
 
 def parse_duo_mfa_challenge(mfa_challenge):
     """Gracefully parse Duo MFA challenge response.
+
     :param mfa_challenge: Duo API response for MFA challenge.
     :return txid: Duo transaction ID.
     """
@@ -281,7 +283,8 @@ def authenticate_duo(selected_okta_factor):
         duo_info = prepare_duo_info(selected_okta_factor)
     except KeyError as missing_key:
         logging.error(
-            "There was an issue parsing the Okta factor. Please try again. \n{}".format(missing_key))
+            "There was an issue parsing the Okta factor."
+            " Please try again. \n{}".format(missing_key))
         exit(1)
 
     # Collect devices, factors, auth params for Duo
