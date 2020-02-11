@@ -633,8 +633,8 @@ def check_integer(value):
     """
     integer_validation = False
     try:
-        if int(value):
-            integer_validation = True
+        value = int(value)
+        integer_validation = True
     except ValueError:
         logging.error("Input is not an integer.")
 
@@ -648,7 +648,7 @@ def validate_input(value, valid_range):
     :param valid_range: valid range based on how many menu options available to user.
     """
     integer_validation = check_integer(value)
-    if valid_range:
+    if integer_validation and valid_range:
         integer_validation = check_within_range(value, valid_range)
     return integer_validation
 
