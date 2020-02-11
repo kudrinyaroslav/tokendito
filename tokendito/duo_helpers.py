@@ -67,7 +67,7 @@ def duo_api_post(url, params={}, headers={}, payload={}):
     except ValueError:
         logging.debug("Non-json response from Duo API: \n{}".format(response))
 
-    if response.status_code > 204:
+    if response.status_code != 200 and response.status_code != 204:
         print("Your Duo authentication has failed with status {}.".format(
             response.status_code))
         if json_message and json_message["stat"].lower() != "ok":
